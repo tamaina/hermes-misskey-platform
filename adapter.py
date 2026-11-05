@@ -784,9 +784,16 @@ def register(ctx) -> None:
         pii_safe=True,
         allow_update_command=True,
         platform_hint=(
-            "You are chatting via Misskey. Prefer plain text or light markdown "
-            "(Misskey renders MFM lightly). Keep replies concise; long replies "
-            "are automatically split to the instance note/chat character limit. "
-            "You are speaking in a direct message or personal chat."
+            "You are chatting via Misskey, a federated (ActivityPub) microblogging "
+            "network. Posts are called notes. Users are written as acct handles: "
+            "@username for local users, @username@host for remote users (e.g. "
+            "@alice@example.social). Users can react to notes and chat messages "
+            "with emoji, including custom emoji written as :name:. Misskey renders "
+            "light Markdown plus MFM, so plain text or simple formatting works best; "
+            "avoid heavy tables. Keep replies short: long replies are split to the "
+            "instance's note/chat character limit. A 👀 reaction is added to the "
+            "user's message while you work and ✅ when you finish; do not mention it. "
+            "You are talking in a direct message or personal chat. Reply in the "
+            "user's language."
         ),
     )
