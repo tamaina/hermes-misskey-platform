@@ -37,7 +37,7 @@ except ImportError:
 
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
-from gateway.platforms.event import MessageEvent, MessageType
+from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
 from gateway.platforms.helpers import MessageDeduplicator, cancel_task
 from gateway.platforms._shared import (
     extra_or_secret as _extra_or_secret,
@@ -206,6 +206,12 @@ class MisskeyAdapter(BasePlatformAdapter):
         # chat_id -> reply context for notes/create
         self._reply_ctx: Dict[str, Dict[str, Any]] = {}
         self._resolved_allow_ids: set[str] = set()
+        # message_id -> "chat" | "note" (to pick the right reaction endpoint)
+        self._msg_kind: Dict[str, str] = {}
+        self._reactions_enabled = _truthy(
+            extra.get("reactions", _get_scoped_secret("MISSKEY_REACTIONS", "true"))
+        )
+        self._note_reactions_ok = True  # flips off if the token lacks write:reactions
 
     @property
     def name(self) -> str:
@@ -451,6 +457,8 @@ class MisskeyAdapter(BasePlatformAdapter):
             visible_ids.append(user_id)
         if self._me_id and self._me_id not in visible_ids and is_dm:
             visible_ids.append(self._me_id)
+        if note_id:
+            self._remember_kind(note_id, "note")
         self._reply_ctx[chat_id] = {
             "kind": "note",
             "reply_id": note_id,
@@ -504,6 +512,8 @@ class MisskeyAdapter(BasePlatformAdapter):
             return
         chat_id = f"chat:{from_id}"
         self._reply_ctx[chat_id] = {"kind": "chat", "user_id": from_id}
+        if msg_id:
+            self._remember_kind(msg_id, "chat")
         source = self.build_source(
             chat_id=chat_id,
             chat_name=acct,
@@ -597,6 +607,48 @@ class MisskeyAdapter(BasePlatformAdapter):
                     pass
             await asyncio.sleep(0.25)
         return SendResult(success=True, message_id=str(last_id or uuid.uuid4().hex[:12]))
+
+    # ── Processing reactions (👀 while working, ✅/❌ when done) ───────────
+
+    def _remember_kind(self, message_id: str, kind: str) -> None:
+        self._msg_kind[message_id] = kind
+        if len(self._msg_kind) > 500:
+            for k in list(self._msg_kind)[:250]:
+                self._msg_kind.pop(k, None)
+
+    async def _react(self, message_id: str, emoji: str, *, add: bool) -> None:
+        kind = self._msg_kind.get(message_id)
+        try:
+            if kind == "chat":
+                await self._api(
+                    "chat/messages/react" if add else "chat/messages/unreact",
+                    {"messageId": message_id, "reaction": emoji},
+                )
+            elif kind == "note" and self._note_reactions_ok:
+                if add:
+                    await self._api("notes/reactions/create", {"noteId": message_id, "reaction": emoji})
+                else:
+                    await self._api("notes/reactions/delete", {"noteId": message_id})
+        except Exception as exc:  # reactions are best-effort
+            msg = str(exc)
+            if kind == "note" and ("HTTP 403" in msg or "PERMISSION" in msg.upper()):
+                self._note_reactions_ok = False
+                logger.warning("[%s] Note reactions disabled (token needs write:reactions)", self.name)
+            else:
+                logger.debug("[%s] reaction failed: %s", self.name, msg[:200])
+
+    async def on_processing_start(self, event: MessageEvent) -> None:
+        if self._reactions_enabled and event.message_id:
+            await self._react(str(event.message_id), "\U0001f440", add=True)
+
+    async def on_processing_complete(self, event: MessageEvent, outcome: ProcessingOutcome) -> None:
+        if not self._reactions_enabled or not event.message_id:
+            return
+        mid = str(event.message_id)
+        await self._react(mid, "\U0001f440", add=False)
+        if outcome == ProcessingOutcome.CANCELLED:
+            return
+        await self._react(mid, "\u2705" if outcome == ProcessingOutcome.SUCCESS else "\u274c", add=True)
 
     async def send_typing(self, chat_id: str, metadata=None) -> None:
         """Misskey has no general typing indicator for notes; chat typing is unsupported here."""

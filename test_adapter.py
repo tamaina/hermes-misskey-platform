@@ -61,6 +61,31 @@ class MisskeyAdapterTests(unittest.TestCase):
     def tearDown(self):
         self._aio_patch.stop()
 
+    def test_processing_reactions_chat(self):
+        from gateway.platforms.event import ProcessingOutcome
+        mk = self.mk
+        mk._api = AsyncMock(return_value=None)
+        _run(mk._handle_chat_message({
+            "id": "c1", "fromUserId": "userid002",
+            "fromUser": {"id": "userid002", "username": "alice", "host": None}, "text": "hi",
+        }))
+        ev = SimpleNamespace(message_id="c1")
+        _run(mk.on_processing_start(ev))
+        _run(mk.on_processing_complete(ev, ProcessingOutcome.SUCCESS))
+        calls = [(c.args[0], c.args[1]["reaction"]) for c in mk._api.await_args_list]
+        self.assertEqual(calls, [
+            ("chat/messages/react", "\U0001f440"),
+            ("chat/messages/unreact", "\U0001f440"),
+            ("chat/messages/react", "\u2705"),
+        ])
+
+    def test_reactions_can_be_disabled(self):
+        mk = self.mk
+        mk._reactions_enabled = False
+        mk._api = AsyncMock()
+        _run(mk.on_processing_start(SimpleNamespace(message_id="x")))
+        mk._api.assert_not_called()
+
     def test_split_text_respects_limit(self):
         parts = adapter._split_text("a" * 50 + "\n\n" + "b" * 50, 60)
         self.assertTrue(all(len(p) <= 60 for p in parts))
