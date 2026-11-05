@@ -64,6 +64,10 @@ Create the token (Settings → API, or an app) with these permissions:
 - `read:chat`
 - `write:chat`
 
+## Optional MFM skill
+
+`skills/misskey-mfm/SKILL.md` is a Hermes skill with Misskey MFM syntax. Copy it to `~/.hermes/skills/social-media/misskey-mfm/` so the agent loads it only when it needs formatting (no cost to the base prompt).
+
 ## Security notes
 
 - **Use a dedicated bot account**, not your personal account. The agent can post as this account.
