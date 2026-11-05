@@ -1,0 +1,45 @@
+name: misskey
+label: Misskey
+kind: platform
+version: 1.0.0
+description: >
+  Misskey gateway adapter for Hermes Agent.
+  Connects to a Misskey (or Misskey-fork) instance over the REST API and
+  streaming WebSocket. Receives direct notes (visibility "specified") and
+  personal chat messages; replies in the same conversation. Public/home
+  mentions are opt-in (MISSKEY_LISTEN_MENTIONS, default off).
+author: "contributors"
+requires_env:
+  - name: MISSKEY_TOKEN
+    description: "Misskey access token (API key) for the bot account"
+    prompt: "Misskey access token"
+    password: true
+  - name: MISSKEY_INSTANCE_URL
+    description: "Misskey instance base URL (required, e.g. https://example.social)"
+    prompt: "Misskey instance URL"
+    password: false
+  - name: MISSKEY_ALLOWED_USERS
+    description: "Comma-separated acct forms allowed to command the bot (required; empty = nobody). e.g. alice@example.social"
+    prompt: "Allowed users (comma-separated)"
+    password: false
+optional_env:
+  - name: MISSKEY_ALLOW_ALL_USERS
+    description: "Allow any Misskey user to talk to the bot (dev only)"
+    prompt: "Allow all users? (true/false)"
+    password: false
+  - name: MISSKEY_LISTEN_MENTIONS
+    description: "Also handle @mentions in public/home notes (default: false)"
+    prompt: "Listen to public mentions? (true/false)"
+    password: false
+  - name: MISSKEY_HOME_CHANNEL
+    description: "chat_id for cron / notification delivery (chat:<userId> or user:<userId>)"
+    prompt: "Home channel chat_id"
+    password: false
+  - name: MISSKEY_HOME_CHANNEL_NAME
+    description: "Display name for the Misskey home channel"
+    prompt: "Home channel display name"
+    password: false
+  - name: MISSKEY_MAX_NOTE_LENGTH
+    description: "Override note character limit (default: fetched from /api/meta, else 3000)"
+    prompt: "Max note length"
+    password: false
